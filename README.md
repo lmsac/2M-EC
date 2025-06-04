@@ -70,7 +70,7 @@ EC
 
 For details on the dataset extraction and preprocessing, please refer to the Methods section in the article corresponding to the publication https://www.nature.com/articles/s41591-021-01619-9. 
 
-### Conversion to Dataset
+### Conversion to dataset
 
 Raw MALDI-TOF MS spectra were converted to .txt format using flexAnalysis software (Bruker, Germany). Spectral preprocessing was performed with R packages MALDIquant and MALDIquantForeign, implementing: 1) square root transformation for variance stabilization, 2) Savitzky-Golay filtering (15-point window) for smoothing, and 3) SNIP algorithm (20 iterations) for baseline correction.
 Following established protocols, we conducted mass-to-charge ratio (m/z) binning with sample-specific resolutions: 9,000 evenly distributed bins for uterine/cervical metabolic profiles (100-1,000 Da), 900 evenly distributed bins for plasma metabolic profiles (100-1,000 Da) and 675 evenly distributed bins for plasma peptidomic profiles (3-30 kDa). The binning approach was adjusted based on the mass spectrometer's resolution. All processed data retained intensity values normalized to total intensity value of the spectrum.
@@ -81,7 +81,7 @@ The github package comes with an elaborate `README.md` file, which gives details
 The code tools for data processing can be found at https://github.com/lmsac/2M-EC.git.
 
 
-### A note on structure of EC Dataset
+### A note on structure of EC dataset
 
 We implemented a stratified cohort design comprising a modeling cohort and an external test cohort. Modeling cohort (n=436) was partitioned into three M sub-cohorts, M1 (cervical and plasma, n=314), M2 (cervical, plasma and uterine, n=436), and M3 (uterine annotated with subtyping, n=77). The raw spectra processed dataset is uploaded in a tabular form as a stratified cohort. The raw data for p53 and nsmp were obtained from Uterine and the processed dataset was uploaded. The raw data files can be aligned according to Samples.
 
