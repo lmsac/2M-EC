@@ -25,7 +25,7 @@ Web-based clinical cohort input and result collection for ROMA.
 ### Maldi spectrum preprocessing.R 
 Prior to new sample prediction, spectrum data must undergo preprocessing and spectral binning, with the binning methodology following published literature protocols（Weis, C., et al. Direct antimicrobial resistance prediction from clinical MALDI-TOF mass spectra using machine learning. Nat Med 28, 164-174 (2022).）
 
-# Open access to data
+# Open access to data and dataset
 Direct decompression provides access to all the multi-omics maldi data (plasma-PM.zip, plasma-PP.zip, cervical.zip, and uterine.zip) used in the study, along with downloadable paired clinical metadata (Metadata_CI.csv) for the 531 patients. The processed maldi data matrices are also available in Appendix Table Data S2: Prepared multi-omics MS dataset (.xlsx).
 
 ### Dataset of EC
