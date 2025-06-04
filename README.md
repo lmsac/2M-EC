@@ -6,7 +6,7 @@ This EC (endometrial cancer) repository includes data preprocessing, model const
 #### Repository Structure
 
 # 2M-EC_platform
-Stores trained models and data processors. Deployment programs. Includes 4 test samples for platform validation.
+Stores trained models and data processors. Deployment programs. Includes 4 test samples for platform test.
 
 # Gridsearch
 Used to optimize analyte-algorithm combinations. The model training methodology referenced literature（Osipov, A., et al. The Molecular Twin artificial-intelligence platform integrates multi-omic data to predict outcomes for pancreatic adenocarcinoma patients. Nat Cancer 5, 299-314 (2024).
@@ -15,7 +15,7 @@ Used to optimize analyte-algorithm combinations. The model training methodology 
 Training, saving and validation of mass spectrometry models and fusion models. 
 
 # ML (machine learning)
-New sample data requires spectral preprocessing followed by binning.
+New sample data requires spectral preprocessing followed by binning. Here is a demonstration of the binning format.
 
 # Identification
 Protein molecular weight calculation and matching.
@@ -85,4 +85,7 @@ The code tools for data processing can be found at https://github.com/lmsac/2M-E
 We implemented a stratified cohort design comprising a modeling cohort and an external test cohort. Modeling cohort (n=436) was partitioned into three M sub-cohorts, M1 (cervical and plasma, n=314), M2 (cervical, plasma and uterine, n=436), and M3 (uterine annotated with subtyping, n=77). The raw spectra processed dataset is uploaded in a tabular form as a stratified cohort. The raw data for p53 and nsmp were obtained from Uterine and the processed dataset was uploaded. The raw data files can be aligned according to Samples.
 
 The first column, "Samples," represents the clinical identification numbers of the patients, and "target" indicates the patient grouping, where 1 denotes the endometrial cancer group and 0 denotes the non-endometrial cancer group. Additionally, for the "p53" and "nsmp" groupings, 1 represents the specific molecular subtype group of the cancer, while 0 represents the other three coded molecular subtype groups combined.
+
+## Open access to all data
+Direct decompression provides access to all the multi-omics maldi data (plasma-PM.zip, plasma-PP.zip, cervical.zip, and uterine.zip) used in the study, along with downloadable paired clinical metadata (Metadata_CI.csv) for the 531 patients. The processed maldi data matrices are also available in Appendix Table Data S2: Prepared multi-omics MS dataset (.xlsx).
 
