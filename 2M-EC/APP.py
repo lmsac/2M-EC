@@ -1,16 +1,24 @@
-import subprocess
 import sys
 import os
+
+# 使用pip模块而不是subprocess来安装包
+try:
+    from pip._internal import main as pip_main
+except ImportError:
+    from pip import main as pip_main
 
 # 强制检查并安装缺失的包
 required_packages = ['shap==0.41.0', 'matplotlib==3.3.0']
 
 for package in required_packages:
+    package_name = package.split('==')[0]
     try:
-        __import__(package.split('==')[0])
+        __import__(package_name)
+        print(f"{package_name} already installed")
     except ImportError:
         print(f"Installing {package}...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        # 使用pip模块而不是subprocess
+        pip_main(['install', package])
 
 # 现在导入所有包
 import streamlit as st
@@ -20,6 +28,10 @@ import pandas as pd
 from PIL import Image
 import shap
 import matplotlib.pyplot as plt
+
+# 添加验证
+st.sidebar.write(f"SHAP version: {shap.__version__}")
+st.sidebar.write(f"Matplotlib version: {matplotlib.__version__}")
 
 # 显示图片和标题
 st.markdown("""
