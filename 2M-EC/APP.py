@@ -239,17 +239,26 @@ if st.button("Submit"):
 
 def show_shap_waterfall(model, input_data, feature_names, model_name):
     """显示SHAP瀑布图来解释模型决策"""
+    if not SHAP_AVAILABLE:
+        st.warning("SHAP visualization not available. Please check deployment logs.")
+        st.info("""
+        **To enable SHAP visualization:**
+        1. Check that requirements.txt contains: `shap==0.41.0` and `matplotlib==3.3.0`
+        2. The app should automatically install missing packages on startup
+        """)
+        return
+    
     try:
-        # 创建SHAP解释器
-        explainer = shap.Explainer(model)
+        # 使用TreeExplainer（适用于XGBoost）
+        explainer = shap.TreeExplainer(model)
         
         # 计算SHAP值
         shap_values = explainer(input_data)
         
         # 创建瀑布图
-        fig, ax = plt.subplots(figsize=(10, 8))
-        shap.plots.waterfall(shap_values[0], max_display=15, show=False)
-        plt.title(f"SHAP Explanation for {model_name} Model", fontsize=16)
+        fig, ax = plt.subplots(figsize=(12, 8))
+        shap.plots.waterfall(shap_values[0], max_display=12, show=False)
+        plt.title(f"SHAP Explanation for {model_name} Model", fontsize=16, pad=20)
         plt.tight_layout()
         
         # 在Streamlit中显示
@@ -259,16 +268,29 @@ def show_shap_waterfall(model, input_data, feature_names, model_name):
         # 添加解释文本
         st.markdown(f"""
         **Interpretation for {model_name} Model:**
-        - **Blue bars**: Features that decrease cancer risk
-        - **Red bars**: Features that increase cancer risk  
-        - **Base value**: Average model prediction
-        - **Final prediction**: Your individual prediction
+        - 📊 **Base value**: Average prediction across all samples
+        - 🔵 **Blue bars**: Features decreasing cancer risk
+        - 🔴 **Red bars**: Features increasing cancer risk
+        - 🎯 **Final prediction**: Individual risk assessment
         """)
         
     except Exception as e:
-        st.warning(f"Could not generate SHAP explanation for {model_name} model: {str(e)}")
+        st.error(f"SHAP visualization failed: {str(e)}")
+        # 提供备选方案
+        show_feature_importance_fallback(model, feature_names, model_name)
 
-# 添加SHAP到requirements
-st.sidebar.markdown("""
-**Note:** SHAP visualization requires `shap` library. 
-Add to your requirements.txt:
+def show_feature_importance_fallback(model, feature_names, model_name):
+    """SHAP不可用时的备用方案"""
+    try:
+        if hasattr(model, 'feature_importances_'):
+            importance_df = pd.DataFrame({
+                'Feature': feature_names,
+                'Importance': model.feature_importances_
+            }).sort_values('Importance', ascending=False).head(10)
+            
+            st.bar_chart(importance_df.set_index('Feature'))
+            st.info(f"Top 10 important features for {model_name} model")
+        else:
+            st.info("Feature importance data not available for this model")
+    except Exception as e:
+        st.warning("Could not generate feature importance visualization")
