@@ -3,19 +3,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from PIL import Image
+import shap
+import matplotlib.pyplot as plt
 
-# # 在 Streamlit 中显示标题
-# st.markdown("""
-#     <h1 style='text-align: center; font-weight: bold; font-size: 30px; margin-bottom: 20px;'>
-#         2M-EC Predictive Platform
-#     </h1>
-# """, unsafe_allow_html=True)
-
-# # 显示图片（直接使用 GitHub 上的原始图片 URL）
-# image_url = "https://github.com/Dandan-debug/2M-EC/raw/main/endometrial.svg"
-# st.image(image_url, width=150, caption="Uploaded Image", use_column_width=False)
-
-# 显示图片（图片在上，标题在下）
+# 显示图片和标题
 st.markdown("""
     <img src="https://github.com/Dandan-debug/2M-EC/raw/main/endometrial.svg" width="100" alt="Endometrial Cancer Model Image" style="display: block; margin: 0 auto 20px;">
     <h1 style="font-weight: bold; font-size: 50px; text-align: center; margin: 0;">
@@ -39,7 +30,6 @@ st.markdown("""
         Please select either the CP or UCP model based on your requirements.
     </p>
 """, unsafe_allow_html=True)
-
 
 # 加载标准器和模型
 scalers = {
@@ -97,11 +87,17 @@ additional_features = {
 }
 
 # 模型选择
-selected_models = st.multiselect(
-    "Select the model(s) to be used (you can select one or more)",
-    options=['U', 'C', 'P'],
-    default=['U']
+model_option = st.selectbox(
+    "Select the model to be used",
+    options=['CP', 'UCP'],
+    index=0
 )
+
+# 根据选择的模型确定要使用的子模型
+if model_option == 'CP':
+    selected_models = ['C', 'P']
+else:  # UCP
+    selected_models = ['U', 'C', 'P']
 
 # 获取用户输入
 user_input = {}
@@ -123,7 +119,10 @@ for model_key in selected_models:
 if st.button("Submit"):
     # 定义模型预测结果存储字典
     model_predictions = {}
-
+    shap_values_dict = {}
+    expected_values_dict = {}
+    feature_names_dict = {}
+    
     # 对选定的每个模型进行标准化和预测
     for model_key in selected_models:
         # 针对每个模型构建专用的输入数据
@@ -147,17 +146,18 @@ if st.button("Submit"):
             'proba': predicted_proba,
             'class': predicted_class
         }
+        
+        # 计算SHAP值
+        explainer = shap.Explainer(models[model_key])
+        shap_values = explainer(model_input_df)
+        
+        # 保存SHAP相关数据用于后续可视化
+        shap_values_dict[model_key] = shap_values
+        expected_values_dict[model_key] = explainer.expected_value
+        feature_names_dict[model_key] = model_features
 
-    # 用户选择1个模型时直接报错
-    if len(selected_models) == 1:
-        st.write("Error")
-
-    # 用户选择2个模型但不是C和P组合时也报错
-    elif len(selected_models) == 2 and set(selected_models) != {'C', 'P'}:
-        st.write("Error")
-
-    # 仅当选择2个模型且为C和P时才处理
-    elif len(selected_models) == 2 and set(selected_models) == {'C', 'P'}:
+    # 用户选择CP模型（C和P组合）
+    if model_option == 'CP':
         # 检查是否有阳性预测（类别1）
         has_positive = any(model_predictions[model_key]['class'] == 1 for model_key in selected_models)
 
@@ -170,8 +170,8 @@ if st.button("Submit"):
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
             st.write(f"ENDOM screening：{max_proba * 100:.2f}%- low risk")
 
-    # 用户选择3个模型
-    elif len(selected_models) == 3:
+    # 用户选择UCP模型（U、C、P组合）
+    else:
         # 统计阳性预测数量
         positive_count = sum(model_predictions[model_key]['class'] == 1 for model_key in selected_models)
 
@@ -185,6 +185,17 @@ if st.button("Submit"):
             low_risk_proba = (1 - max_proba) * 100
             st.write(f"ENDOM diagnosis：{low_risk_proba:.2f}%- low risk")
 
-    # 其他情况也报错（比如选择0个或超过3个）
-    else:
-        st.write("Error")
+    # 显示SHAP瀑布图
+    st.markdown("### SHAP Explanation")
+    
+    for model_key in selected_models:
+        st.markdown(f"#### {model_key} Model SHAP Analysis")
+        
+        # 创建瀑布图
+        fig, ax = plt.subplots(figsize=(10, 8))
+        shap.plots.waterfall(shap_values_dict[model_key][0], max_display=15, show=False)
+        plt.tight_layout()
+        
+        # 在Streamlit中显示
+        st.pyplot(fig)
+        plt.close()
