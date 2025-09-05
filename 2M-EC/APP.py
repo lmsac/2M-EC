@@ -1,3 +1,18 @@
+import subprocess
+import sys
+import os
+
+# 强制检查并安装缺失的包
+required_packages = ['shap==0.41.0', 'matplotlib==3.3.0']
+
+for package in required_packages:
+    try:
+        __import__(package.split('==')[0])
+    except ImportError:
+        print(f"Installing {package}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# 现在导入所有包
 import streamlit as st
 import joblib
 import numpy as np
