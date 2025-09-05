@@ -3,19 +3,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from PIL import Image
+import shap
+import matplotlib.pyplot as plt
 
-# # 在 Streamlit 中显示标题
-# st.markdown("""
-#     <h1 style='text-align: center; font-weight: bold; font-size: 30px; margin-bottom: 20px;'>
-#         2M-EC Predictive Platform
-#     </h1>
-# """, unsafe_allow_html=True)
-
-# # 显示图片（直接使用 GitHub 上的原始图片 URL）
-# image_url = "https://github.com/Dandan-debug/2M-EC/raw/main/endometrial.svg"
-# st.image(image_url, width=150, caption="Uploaded Image", use_column_width=False)
-
-# 显示图片（图片在上，标题在下）
+# 显示图片和标题
 st.markdown("""
     <img src="https://github.com/Dandan-debug/2M-EC/raw/main/endometrial.svg" width="100" alt="Endometrial Cancer Model Image" style="display: block; margin: 0 auto 20px;">
     <h1 style="font-weight: bold; font-size: 50px; text-align: center; margin: 0;">
@@ -32,7 +23,6 @@ st.markdown("""
         • Low-risk probability = 1 - Highest cancer probability<br>
     </p>
 """, unsafe_allow_html=True)
-
 
 # 加载标准器和模型
 scalers = {
@@ -116,6 +106,7 @@ for model_key in selected_models:
 if st.button("Submit"):
     # 定义模型预测结果存储字典
     model_predictions = {}
+    model_inputs = {}  # 存储每个模型的输入数据
 
     # 对选定的每个模型进行标准化和预测
     for model_key in selected_models:
@@ -128,6 +119,9 @@ if st.button("Submit"):
         # 仅保留当前模型需要的特征
         model_input_df = model_input_df[model_features]
         
+        # 保存原始输入用于SHAP分析
+        original_input = model_input_df.copy()
+        
         # 对需要标准化的特征进行标准化
         model_input_df[original_features_to_scale] = scalers[model_key].transform(model_input_df[original_features_to_scale])
         
@@ -135,19 +129,23 @@ if st.button("Submit"):
         predicted_proba = models[model_key].predict_proba(model_input_df)[0]
         predicted_class = models[model_key].predict(model_input_df)[0]
         
-        # 保存预测结果
+        # 保存预测结果和输入数据
         model_predictions[model_key] = {
             'proba': predicted_proba,
             'class': predicted_class
         }
+        model_inputs[model_key] = {
+            'original': original_input,
+            'scaled': model_input_df
+        }
 
     # 用户选择1个模型时直接报错
     if len(selected_models) == 1:
-        st.write("Error")
+        st.error("Please select at least 2 models for prediction")
 
     # 用户选择2个模型但不是C和P组合时也报错
     elif len(selected_models) == 2 and set(selected_models) != {'C', 'P'}:
-        st.write("Error")
+        st.error("For 2 models, only C and P combination is supported")
 
     # 仅当选择2个模型且为C和P时才处理
     elif len(selected_models) == 2 and set(selected_models) == {'C', 'P'}:
@@ -157,11 +155,18 @@ if st.button("Submit"):
         if has_positive:
             # 取两个模型中预测癌症概率更高的值
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
-            st.write(f"ENDOM screening：{max_proba * 100:.2f}%- high risk")
+            st.success(f"ENDOM screening：{max_proba * 100:.2f}%- high risk")
+            
+            # 显示SHAP瀑布图
+            st.subheader("Model Decision Explanation")
+            for model_key in selected_models:
+                if model_predictions[model_key]['class'] == 1:
+                    show_shap_waterfall(models[model_key], model_inputs[model_key]['scaled'], 
+                                       model_features, model_key)
         else:
             # 取两个模型中预测癌症概率更高的值（虽然都是阴性）
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
-            st.write(f"ENDOM screening：{max_proba * 100:.2f}%- low risk")
+            st.info(f"ENDOM screening：{max_proba * 100:.2f}%- low risk")
 
     # 用户选择3个模型
     elif len(selected_models) == 3:
@@ -171,13 +176,56 @@ if st.button("Submit"):
         if positive_count >= 2:  # 多数为阳性
             # 取三个模型中预测癌症概率最高的值
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
-            st.write(f"ENDOM diagnosis：{max_proba * 100:.2f}%- high risk")
+            st.success(f"ENDOM diagnosis：{max_proba * 100:.2f}%- high risk")
+            
+            # 显示SHAP瀑布图
+            st.subheader("Model Decision Explanation")
+            for model_key in selected_models:
+                if model_predictions[model_key]['class'] == 1:
+                    show_shap_waterfall(models[model_key], model_inputs[model_key]['scaled'], 
+                                       model_features, model_key)
         else:  # 多数为阴性
             # 计算1减去三个模型中最高癌症概率
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
             low_risk_proba = (1 - max_proba) * 100
-            st.write(f"ENDOM diagnosis：{low_risk_proba:.2f}%- low risk")
+            st.info(f"ENDOM diagnosis：{low_risk_proba:.2f}%- low risk")
 
     # 其他情况也报错（比如选择0个或超过3个）
     else:
-        st.write("Error")
+        st.error("Invalid model selection. Please select 2 or 3 models.")
+
+def show_shap_waterfall(model, input_data, feature_names, model_name):
+    """显示SHAP瀑布图来解释模型决策"""
+    try:
+        # 创建SHAP解释器
+        explainer = shap.Explainer(model)
+        
+        # 计算SHAP值
+        shap_values = explainer(input_data)
+        
+        # 创建瀑布图
+        fig, ax = plt.subplots(figsize=(10, 8))
+        shap.plots.waterfall(shap_values[0], max_display=15, show=False)
+        plt.title(f"SHAP Explanation for {model_name} Model", fontsize=16)
+        plt.tight_layout()
+        
+        # 在Streamlit中显示
+        st.pyplot(fig)
+        plt.close()
+        
+        # 添加解释文本
+        st.markdown(f"""
+        **Interpretation for {model_name} Model:**
+        - **Blue bars**: Features that decrease cancer risk
+        - **Red bars**: Features that increase cancer risk  
+        - **Base value**: Average model prediction
+        - **Final prediction**: Your individual prediction
+        """)
+        
+    except Exception as e:
+        st.warning(f"Could not generate SHAP explanation for {model_name} model: {str(e)}")
+
+# 添加SHAP到requirements
+st.sidebar.markdown("""
+**Note:** SHAP visualization requires `shap` library. 
+Add to your requirements.txt:
