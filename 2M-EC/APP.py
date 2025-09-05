@@ -1,24 +1,28 @@
-import sys
+# 强制安装缺失的包
 import os
+import sys
+import subprocess
 
-# 使用pip模块而不是subprocess来安装包
-try:
-    from pip._internal import main as pip_main
-except ImportError:
-    from pip import main as pip_main
+# 检查并安装缺失的包
+REQUIRED_PACKAGES = ['shap==0.41.0', 'matplotlib==3.3.0']
 
-# 强制检查并安装缺失的包
-required_packages = ['shap==0.41.0', 'matplotlib==3.3.0']
-
-for package in required_packages:
+for package in REQUIRED_PACKAGES:
     package_name = package.split('==')[0]
     try:
         __import__(package_name)
-        print(f"{package_name} already installed")
+        print(f"✓ {package_name} already installed")
     except ImportError:
-        print(f"Installing {package}...")
-        # 使用pip模块而不是subprocess
-        pip_main(['install', package])
+        print(f"⚠️ Installing {package}...")
+        # 使用subprocess安装
+        result = subprocess.run([
+            sys.executable, "-m", "pip", "install", 
+            "--no-cache-dir", package
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"✓ Successfully installed {package}")
+        else:
+            print(f"✗ Failed to install {package}: {result.stderr}")
 
 # 现在导入所有包
 import streamlit as st
@@ -26,12 +30,24 @@ import joblib
 import numpy as np
 import pandas as pd
 from PIL import Image
-import shap
-import matplotlib.pyplot as plt
 
-# 添加验证
-st.sidebar.write(f"SHAP version: {shap.__version__}")
-st.sidebar.write(f"Matplotlib version: {matplotlib.__version__}")
+# 验证SHAP是否安装成功
+try:
+    import shap
+    import matplotlib.pyplot as plt
+    SHAP_AVAILABLE = True
+    st.sidebar.success("✅ SHAP and matplotlib loaded!")
+except ImportError as e:
+    SHAP_AVAILABLE = False
+    st.sidebar.error(f"❌ SHAP import failed: {e}")
+    # 显示详细的错误信息
+    import pkg_resources
+    installed_packages = [pkg.key for pkg in pkg_resources.working_set]
+    st.sidebar.write(f"Installed packages: {len(installed_packages)}")
+    st.sidebar.write("SHAP available:" + str('shap' in installed_packages))
+    st.sidebar.write("Matplotlib available:" + str('matplotlib' in installed_packages))
+
+# 你的现有代码继续...
 
 # 显示图片和标题
 st.markdown("""
