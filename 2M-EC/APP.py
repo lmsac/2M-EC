@@ -1,53 +1,8 @@
-# 强制安装缺失的包
-import os
-import sys
-import subprocess
-
-# 检查并安装缺失的包
-REQUIRED_PACKAGES = ['shap==0.41.0', 'matplotlib==3.3.0']
-
-for package in REQUIRED_PACKAGES:
-    package_name = package.split('==')[0]
-    try:
-        __import__(package_name)
-        print(f"✓ {package_name} already installed")
-    except ImportError:
-        print(f"⚠️ Installing {package}...")
-        # 使用subprocess安装
-        result = subprocess.run([
-            sys.executable, "-m", "pip", "install", 
-            "--no-cache-dir", package
-        ], capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print(f"✓ Successfully installed {package}")
-        else:
-            print(f"✗ Failed to install {package}: {result.stderr}")
-
-# 现在导入所有包
 import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
 from PIL import Image
-
-# 验证SHAP是否安装成功
-try:
-    import shap
-    import matplotlib.pyplot as plt
-    SHAP_AVAILABLE = True
-    st.sidebar.success("✅ SHAP and matplotlib loaded!")
-except ImportError as e:
-    SHAP_AVAILABLE = False
-    st.sidebar.error(f"❌ SHAP import failed: {e}")
-    # 显示详细的错误信息
-    import pkg_resources
-    installed_packages = [pkg.key for pkg in pkg_resources.working_set]
-    st.sidebar.write(f"Installed packages: {len(installed_packages)}")
-    st.sidebar.write("SHAP available:" + str('shap' in installed_packages))
-    st.sidebar.write("Matplotlib available:" + str('matplotlib' in installed_packages))
-
-# 你的现有代码继续...
 
 # 显示图片和标题
 st.markdown("""
@@ -66,6 +21,15 @@ st.markdown("""
         • Low-risk probability = 1 - Highest cancer probability<br>
     </p>
 """, unsafe_allow_html=True)
+
+# 尝试导入SHAP，如果失败则提供备用方案
+try:
+    import shap
+    import matplotlib.pyplot as plt
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+    st.sidebar.warning("SHAP library not available. Visualization features will be limited.")
 
 # 加载标准器和模型
 scalers = {
@@ -121,6 +85,42 @@ additional_features = {
           'UM2132.0', 'UM3513.0', 'UM790.0', 'UM8349.0', 'UM2093.0',
           'UM4210.0', 'UM3935.0', 'UM4256.0']
 }
+
+# SHAP可视化函数
+def show_shap_waterfall(model, input_data, feature_names, model_name):
+    """显示SHAP瀑布图来解释模型决策"""
+    if not SHAP_AVAILABLE:
+        st.warning("SHAP visualization not available. Please install shap and matplotlib.")
+        return
+    
+    try:
+        # 使用TreeExplainer（适用于XGBoost）
+        explainer = shap.TreeExplainer(model)
+        
+        # 计算SHAP值
+        shap_values = explainer(input_data)
+        
+        # 创建瀑布图
+        fig, ax = plt.subplots(figsize=(12, 8))
+        shap.plots.waterfall(shap_values[0], max_display=15, show=False)
+        plt.title(f"SHAP Explanation for {model_name} Model", fontsize=16, pad=20)
+        plt.tight_layout()
+        
+        # 在Streamlit中显示
+        st.pyplot(fig)
+        plt.close()
+        
+        # 添加解释文本
+        st.markdown(f"""
+        **Interpretation for {model_name} Model:**
+        - **Blue bars**: Features that decrease cancer risk
+        - **Red bars**: Features that increase cancer risk  
+        - **Base value**: Average model prediction
+        - **Final prediction**: Your individual prediction
+        """)
+        
+    except Exception as e:
+        st.warning(f"Could not generate SHAP explanation for {model_name} model: {str(e)}")
 
 # 模型选择
 selected_models = st.multiselect(
@@ -178,8 +178,8 @@ if st.button("Submit"):
             'class': predicted_class
         }
         model_inputs[model_key] = {
-            'original': original_input,
-            'scaled': model_input_df
+            'scaled': model_input_df,
+            'features': model_features
         }
 
     # 用户选择1个模型时直接报错
@@ -203,9 +203,8 @@ if st.button("Submit"):
             # 显示SHAP瀑布图
             st.subheader("Model Decision Explanation")
             for model_key in selected_models:
-                if model_predictions[model_key]['class'] == 1:
-                    show_shap_waterfall(models[model_key], model_inputs[model_key]['scaled'], 
-                                       model_features, model_key)
+                show_shap_waterfall(models[model_key], model_inputs[model_key]['scaled'], 
+                                   model_inputs[model_key]['features'], model_key)
         else:
             # 取两个模型中预测癌症概率更高的值（虽然都是阴性）
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
@@ -224,9 +223,9 @@ if st.button("Submit"):
             # 显示SHAP瀑布图
             st.subheader("Model Decision Explanation")
             for model_key in selected_models:
-                if model_predictions[model_key]['class'] == 1:
+                if model_predictions[model_key]['class'] == 1:  # 只显示阳性模型的SHAP
                     show_shap_waterfall(models[model_key], model_inputs[model_key]['scaled'], 
-                                       model_features, model_key)
+                                       model_inputs[model_key]['features'], model_key)
         else:  # 多数为阴性
             # 计算1减去三个模型中最高癌症概率
             max_proba = max(model_predictions[model_key]['proba'][1] for model_key in selected_models)
@@ -237,60 +236,13 @@ if st.button("Submit"):
     else:
         st.error("Invalid model selection. Please select 2 or 3 models.")
 
-def show_shap_waterfall(model, input_data, feature_names, model_name):
-    """显示SHAP瀑布图来解释模型决策"""
-    if not SHAP_AVAILABLE:
-        st.warning("SHAP visualization not available. Please check deployment logs.")
-        st.info("""
-        **To enable SHAP visualization:**
-        1. Check that requirements.txt contains: `shap==0.41.0` and `matplotlib==3.3.0`
-        2. The app should automatically install missing packages on startup
-        """)
-        return
-    
-    try:
-        # 使用TreeExplainer（适用于XGBoost）
-        explainer = shap.TreeExplainer(model)
-        
-        # 计算SHAP值
-        shap_values = explainer(input_data)
-        
-        # 创建瀑布图
-        fig, ax = plt.subplots(figsize=(12, 8))
-        shap.plots.waterfall(shap_values[0], max_display=12, show=False)
-        plt.title(f"SHAP Explanation for {model_name} Model", fontsize=16, pad=20)
-        plt.tight_layout()
-        
-        # 在Streamlit中显示
-        st.pyplot(fig)
-        plt.close()
-        
-        # 添加解释文本
-        st.markdown(f"""
-        **Interpretation for {model_name} Model:**
-        - 📊 **Base value**: Average prediction across all samples
-        - 🔵 **Blue bars**: Features decreasing cancer risk
-        - 🔴 **Red bars**: Features increasing cancer risk
-        - 🎯 **Final prediction**: Individual risk assessment
-        """)
-        
-    except Exception as e:
-        st.error(f"SHAP visualization failed: {str(e)}")
-        # 提供备选方案
-        show_feature_importance_fallback(model, feature_names, model_name)
-
-def show_feature_importance_fallback(model, feature_names, model_name):
-    """SHAP不可用时的备用方案"""
-    try:
-        if hasattr(model, 'feature_importances_'):
-            importance_df = pd.DataFrame({
-                'Feature': feature_names,
-                'Importance': model.feature_importances_
-            }).sort_values('Importance', ascending=False).head(10)
-            
-            st.bar_chart(importance_df.set_index('Feature'))
-            st.info(f"Top 10 important features for {model_name} model")
-        else:
-            st.info("Feature importance data not available for this model")
-    except Exception as e:
-        st.warning("Could not generate feature importance visualization")
+# 添加SHAP安装说明
+if not SHAP_AVAILABLE:
+    st.sidebar.markdown("""
+    **To enable SHAP visualization:**
+    Add to your requirements.txt:
+    ```
+    shap>=0.41.0
+    matplotlib>=3.3.0
+    ```
+    """)
