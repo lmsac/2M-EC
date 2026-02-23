@@ -295,7 +295,7 @@ def predict_model(model_name, df_ci_data, df_mass_data, expected_features, mass_
     # 提取所有质谱特征列(排除Samples和target)
     mass_all_columns = [col for col in df_mass_data.columns if col not in ['Samples', 'target']]
     
-    # 提取所有质谱特征数据(只保留有效样本).     ####_cfg = {0: 0.725, 1: 0.27, 2: 0.5}
+    # 提取所有质谱特征数据(只保留有效样本).     
     mass_all_data = df_mass_data.iloc[valid_mass_indices][mass_all_columns].reset_index(drop=True)
     
     # 对所有质谱特征进行StandardScaler标准化
