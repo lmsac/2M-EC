@@ -1,4 +1,6 @@
-#### 2M-EC Platform Study Documentation
+（For subsequent updates, suggestions, or inquiries, please contact the author via email: oceanddl@sina.com）
+
+#### 2M-EC Platform Study Documentation 
 
 This EC (endometrial cancer) repository includes data preprocessing, model construction/validation, and 2M-EC platform deployment. The repository also incorporates our in-house developed tools for molecular matching and ROMA data collection.
 
